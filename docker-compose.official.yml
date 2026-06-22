@@ -1,0 +1,53 @@
+services:
+  llama-gemma4:
+    image: ghcr.io/ggml-org/llama.cpp:server-cuda13
+    container_name: llama-gemma4-e4b
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./models:/models
+      - ./cache:/root/.cache
+    environment:
+      # llama.cpp の -hf で Hugging Face から取得する場合のキャッシュ先
+      - HF_HOME=/root/.cache/huggingface
+      # private/gated repo を使う場合だけ .env に HF_TOKEN=... を定義
+      - HF_TOKEN=${HF_TOKEN:-}
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    command:
+      [
+        "-hf", "unsloth/gemma-4-E4B-it-qat-GGUF:UD-Q4_K_XL",
+        "--spec-type", "draft-mtp",
+        "--spec-draft-n-max", "4",
+        "-ngl", "999",
+        "-fa", "off",
+        "--ctx-size", "8192",
+        "--host", "0.0.0.0",
+        "--port", "8080"
+      ]
+
+  # 任意: 推論結果をブラウザで確認するUI。主目的がAPIサーバなら無効のままでよい。
+  open-webui:
+    image: ghcr.io/open-webui/open-webui:main
+    container_name: open-webui
+    profiles: ["ui"]
+    restart: unless-stopped
+    ports:
+      - "3000:8080"
+    volumes:
+      - open-webui:/app/backend/data
+    environment:
+      - WEBUI_AUTH=False
+      - OPENAI_API_BASE_URL=http://llama-gemma4:8080/v1
+      - OPENAI_API_KEY=none
+    depends_on:
+      - llama-gemma4
+
+volumes:
+  open-webui:

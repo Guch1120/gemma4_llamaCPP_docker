@@ -1,0 +1,59 @@
+services:
+  llama-gemma4:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        # Gemma 4 E2B/E4B MTP support is in llama.cpp master after PR #23398 and #24282.
+        # For reproducibility, replace master with a known-good commit after 2026-06-08.
+        LLAMA_CPP_REF: master
+        CUDA_VERSION: 13.0.1
+        CUDA_DOCKER_ARCH: all
+    image: local/llama.cpp:gemma4-mtp-cuda13
+    container_name: llama-gemma4-e4b
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./models:/models
+      - ./cache:/root/.cache
+    environment:
+      - HF_HOME=/root/.cache/huggingface
+      - HF_TOKEN=${HF_TOKEN:-}
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    command:
+      [
+        "-hf", "unsloth/gemma-4-E4B-it-qat-GGUF:UD-Q4_K_XL",
+        "--spec-type", "draft-mtp",
+        "--spec-draft-n-max", "4",
+        "-ngl", "999",
+        "-fa", "off",
+        "--ctx-size", "8192",
+        "--host", "0.0.0.0",
+        "--port", "8080"
+      ]
+
+  open-webui:
+    image: ghcr.io/open-webui/open-webui:main
+    container_name: open-webui
+    profiles: ["ui"]
+    restart: unless-stopped
+    ports:
+      - "3000:8080"
+    volumes:
+      - open-webui:/app/backend/data
+    environment:
+      - WEBUI_AUTH=False
+      - OPENAI_API_BASE_URL=http://llama-gemma4:8080/v1
+      - OPENAI_API_KEY=none
+    depends_on:
+      - llama-gemma4
+
+volumes:
+  open-webui:
