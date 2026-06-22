@@ -3,8 +3,9 @@ services:
     image: ghcr.io/ggml-org/llama.cpp:server-cuda
     container_name: llama-gemma4-e4b
     restart: unless-stopped
-    ports:
-      - "8080:8080"
+    network_mode: host
+    # ports:
+    #   - "8080:8080"
     gpus: all
     volumes:
       - ./cache:/root/.cache
@@ -14,12 +15,13 @@ services:
       HF_TOKEN: ${HF_TOKEN:-}
     command:
       [
-        "-hf", "unsloth/gemma-4-E4B-it-qat-GGUF:UD-Q4_K_XL",
+        "-hf", "unsloth/gemma-4-E2B-it-qat-GGUF:UD-Q4_K_XL",
         "--spec-type", "draft-mtp",
         "--spec-draft-n-max", "4",
         "-ngl", "999",
         "-fa", "off",
         "--ctx-size", "8192",
+        "--parallel", "1",
         "--host", "0.0.0.0",
         "--port", "8080"
       ]
@@ -33,8 +35,8 @@ services:
       - "3000:8080"
     volumes:
       - ./open-webui:/app/backend/data
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
-      OPENAI_API_BASE_URL: http://llama-gemma4:8080/v1
+      OPENAI_API_BASE_URL: http://host.docker.internal:8080/v1
       OPENAI_API_KEY: dummy
-    depends_on:
-      - llama-gemma4
