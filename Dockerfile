@@ -7,7 +7,7 @@ ARG LLAMA_CPP_REF=master
 ARG CUDA_DOCKER_ARCH=all
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    git cmake build-essential ca-certificates curl ccache \
+    git cmake build-essential ca-certificates curl ccache nano \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /src

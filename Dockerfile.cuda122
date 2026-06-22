@@ -1,0 +1,48 @@
+ARG CUDA_VERSION=12.2.2
+FROM nvidia/cuda:${CUDA_VERSION}-devel-ubuntu22.04 AS build
+
+ARG DEBIAN_FRONTEND=noninteractive
+ARG LLAMA_CPP_REF=master
+ARG CMAKE_CUDA_ARCHITECTURES="86;89"
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    git \
+    cmake \
+    ninja-build \
+    build-essential \
+    pkg-config \
+    curl \
+    libcurl4-openssl-dev \
+    ccache \
+ && rm -rf /var/lib/apt/lists/*
+
+RUN git clone https://github.com/ggml-org/llama.cpp /src/llama.cpp \
+ && cd /src/llama.cpp \
+ && if [ "${LLAMA_CPP_REF}" != "master" ]; then \
+      git fetch --depth 1 origin "${LLAMA_CPP_REF}" && git checkout FETCH_HEAD; \
+    fi
+
+RUN cmake -S /src/llama.cpp -B /src/llama.cpp/build -G Ninja \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DGGML_CUDA=ON \
+    -DLLAMA_CURL=ON \
+    -DCMAKE_CUDA_ARCHITECTURES="${CMAKE_CUDA_ARCHITECTURES}" \
+ && cmake --build /src/llama.cpp/build --target llama-server -j"$(nproc)" \
+ && cmake --install /src/llama.cpp/build --prefix /opt/llama.cpp
+
+FROM nvidia/cuda:${CUDA_VERSION}-runtime-ubuntu22.04 AS runtime
+
+ARG DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    curl \
+    libcurl4 \
+    libgomp1 \
+ && rm -rf /var/lib/apt/lists/*
+
+COPY --from=build /opt/llama.cpp /opt/llama.cpp
+ENV PATH="/opt/llama.cpp/bin:${PATH}"
+WORKDIR /workspace
+EXPOSE 8080
+ENTRYPOINT ["llama-server"]

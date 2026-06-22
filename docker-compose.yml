@@ -1,16 +1,6 @@
 services:
   llama-gemma4:
-    build:
-      context: .
-      dockerfile: Dockerfile.cuda122
-      args:
-        # Keep master by default so it includes Gemma 4 E2B/E4B MTP support.
-        # For reproducibility, pin this to a llama.cpp commit after PR #24282.
-        LLAMA_CPP_REF: master
-        CUDA_VERSION: 12.2.2
-        # RTX 30xx = 86, RTX 40xx = 89. Edit if your GPU differs.
-        CMAKE_CUDA_ARCHITECTURES: "86;89"
-    image: local/llama.cpp:server-cuda122-gemma4
+    image: ghcr.io/ggml-org/llama.cpp:server-cuda
     container_name: llama-gemma4-e4b
     restart: unless-stopped
     ports:
@@ -33,3 +23,18 @@ services:
         "--host", "0.0.0.0",
         "--port", "8080"
       ]
+
+  open-webui:
+    image: ghcr.io/open-webui/open-webui:main
+    container_name: open-webui-llama
+    restart: unless-stopped
+    profiles: ["ui"]
+    ports:
+      - "3000:8080"
+    volumes:
+      - ./open-webui:/app/backend/data
+    environment:
+      OPENAI_API_BASE_URL: http://llama-gemma4:8080/v1
+      OPENAI_API_KEY: dummy
+    depends_on:
+      - llama-gemma4
